@@ -3,7 +3,7 @@ import requests
 from prometheus_client import start_http_server, Gauge
 
 # Constants
-API_KEY = 'your_pdq_connect_api_key'  # Replace with your actual API key
+API_KEY = 'redacted'  # Replace with your actual API key
 BASE_URL = 'https://app.pdq.com/v1/api'
 
 # Prometheus metrics definition
@@ -34,15 +34,15 @@ def get_devices():
 
 # Function to format custom fields into a string
 def format_custom_fields(custom_fields):
-    return ', '.join(f"{field['name']}={field.get('value', 'null')}" for field in custom_fields)
+    return ', '.join(f"{field.get('name', 'unknown')}={field.get('value', 'unknown')}" for field in custom_fields if field)
 
 # Function to format disks into a string
 def format_disks(disks):
-    return '; '.join(f"Disk {disk.get('id', 'unknown')}: {disk.get('model', 'unknown')}, {disk.get('mediaType', 'unknown')}, {disk.get('totalSpaceKb', 'unknown')} KB" for disk in disks)
+    return '; '.join(f"Disk {disk.get('id', 'unknown')}: {disk.get('model', 'unknown')}, {disk.get('mediaType', 'unknown')}, {disk.get('totalSpaceKb', 'unknown')} KB" for disk in disks if disk)
 
 # Function to format drivers into a string
 def format_drivers(drivers):
-    return '; '.join(f"Driver {driver.get('id', 'unknown')}: {driver.get('name', 'unknown')}, {driver.get('version', 'unknown')}, {driver.get('provider', 'unknown')}" for driver in drivers)
+    return '; '.join(f"Driver {driver.get('id', 'unknown')}: {driver.get('name', 'unknown')}, {driver.get('version', 'unknown')}, {driver.get('provider', 'unknown')}" for driver in drivers if driver)
 
 # Function to collect and update Prometheus metrics for devices
 def collect_device_metrics(devices):
@@ -60,10 +60,10 @@ def collect_device_metrics(devices):
         serial_number = device.get('serialNumber', 'unknown')
         service_pack = device.get('servicePack', 'unknown')
 
-        active_directory = device.get('activeDirectory', {}).get('deviceName', 'unknown')
-        custom_fields = format_custom_fields(device.get('customFields', []))
-        disks = format_disks(device.get('disks', []))
-        drivers = format_drivers(device.get('drivers', []))
+        active_directory = device.get('activeDirectory', {}).get('deviceName', 'unknown') if device.get('activeDirectory') else 'unknown'
+        custom_fields = format_custom_fields(device.get('customFields', [])) if device.get('customFields') else 'unknown'
+        disks = format_disks(device.get('disks', [])) if device.get('disks') else 'unknown'
+        drivers = format_drivers(device.get('drivers', [])) if device.get('drivers') else 'unknown'
 
         pdq_devices.labels(
             hostname=hostname,
