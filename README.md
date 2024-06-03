@@ -30,7 +30,7 @@ This project is a Prometheus exporter that collects and exposes metrics from the
 4. Run the exporter:
 
     ```bash
-    python pdq_exporter.py
+    python app.py
     ```
 
 ## Metrics
