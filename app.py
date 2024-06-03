@@ -6,11 +6,23 @@ from prometheus_client import start_http_server, Gauge
 API_KEY = 'redacted'  # Replace with your actual API key
 BASE_URL = 'https://app.pdq.com/v1/api'
 
-# Prometheus metrics definition
-pdq_devices = Gauge('pdq_devices', 'Information about devices managed by PDQ Connect', [
+# Prometheus metrics definitions
+device_count = Gauge('pdq_device_count', 'Total number of devices managed by PDQ Connect')
+device_info = Gauge('pdq_device_info', 'Basic information about the device', [
     'hostname', 'architecture', 'id', 'insertedAt', 'lastUser',
-    'model', 'name', 'osVersion', 'publicIpAddress', 'serialNumber',
-    'servicePack', 'activeDirectory', 'customFields', 'disks', 'drivers'
+    'model', 'name', 'osVersion', 'publicIpAddress', 'serialNumber', 'servicePack'
+])
+disk_info = Gauge('pdq_disk_info', 'Information about the device disks', [
+    'hostname', 'disk_id', 'model', 'mediaType', 'totalSpaceKb'
+])
+driver_info = Gauge('pdq_driver_info', 'Information about the device drivers', [
+    'hostname', 'driver_id', 'name', 'version', 'provider'
+])
+ad_info = Gauge('pdq_ad_info', 'Active Directory information about the device', [
+    'hostname', 'deviceName'
+])
+custom_fields_info = Gauge('pdq_custom_fields_info', 'Custom fields information about the device', [
+    'hostname', 'field_name', 'field_value'
 ])
 
 # Function to get devices from PDQ Connect API
@@ -32,20 +44,9 @@ def get_devices():
     print("Devices fetched successfully")
     return response.json()
 
-# Function to format custom fields into a string
-def format_custom_fields(custom_fields):
-    return ', '.join(f"{field.get('name', 'unknown')}={field.get('value', 'unknown')}" for field in custom_fields if field)
-
-# Function to format disks into a string
-def format_disks(disks):
-    return '; '.join(f"Disk {disk.get('id', 'unknown')}: {disk.get('model', 'unknown')}, {disk.get('mediaType', 'unknown')}, {disk.get('totalSpaceKb', 'unknown')} KB" for disk in disks if disk)
-
-# Function to format drivers into a string
-def format_drivers(drivers):
-    return '; '.join(f"Driver {driver.get('id', 'unknown')}: {driver.get('name', 'unknown')}, {driver.get('version', 'unknown')}, {driver.get('provider', 'unknown')}" for driver in drivers if driver)
-
 # Function to collect and update Prometheus metrics for devices
 def collect_device_metrics(devices):
+    device_count.set(len(devices['data']))
     print(f"Updating metrics for {len(devices['data'])} devices")
     for device in devices['data']:
         hostname = device.get('hostname', 'unknown')
@@ -60,12 +61,8 @@ def collect_device_metrics(devices):
         serial_number = device.get('serialNumber', 'unknown')
         service_pack = device.get('servicePack', 'unknown')
 
-        active_directory = device.get('activeDirectory', {}).get('deviceName', 'unknown') if device.get('activeDirectory') else 'unknown'
-        custom_fields = format_custom_fields(device.get('customFields', [])) if device.get('customFields') else 'unknown'
-        disks = format_disks(device.get('disks', [])) if device.get('disks') else 'unknown'
-        drivers = format_drivers(device.get('drivers', [])) if device.get('drivers') else 'unknown'
-
-        pdq_devices.labels(
+        # Update device info metric
+        device_info.labels(
             hostname=hostname,
             architecture=architecture,
             id=device_id,
@@ -76,12 +73,44 @@ def collect_device_metrics(devices):
             osVersion=os_version,
             publicIpAddress=public_ip_address,
             serialNumber=serial_number,
-            servicePack=service_pack,
-            activeDirectory=active_directory,
-            customFields=custom_fields,
-            disks=disks,
-            drivers=drivers
-        ).set(1)  # Using 1 as the value to indicate the presence of the device
+            servicePack=service_pack
+        ).set(1)
+
+        # Update disk info metrics
+        for disk in device.get('disks', []):
+            disk_info.labels(
+                hostname=hostname,
+                disk_id=disk.get('id', 'unknown'),
+                model=disk.get('model', 'unknown'),
+                mediaType=disk.get('mediaType', 'unknown'),
+                totalSpaceKb=disk.get('totalSpaceKb', 0)
+            ).set(1)
+
+        # Update driver info metrics
+        for driver in device.get('drivers', []):
+            driver_info.labels(
+                hostname=hostname,
+                driver_id=driver.get('id', 'unknown'),
+                name=driver.get('name', 'unknown'),
+                version=driver.get('version', 'unknown'),
+                provider=driver.get('provider', 'unknown')
+            ).set(1)
+
+        # Update Active Directory info metric
+        active_directory = device.get('activeDirectory', {})
+        if active_directory:
+            ad_info.labels(
+                hostname=hostname,
+                deviceName=active_directory.get('deviceName', 'unknown')
+            ).set(1)
+
+        # Update custom fields metrics
+        for field in device.get('customFields', []):
+            custom_fields_info.labels(
+                hostname=hostname,
+                field_name=field.get('name', 'unknown'),
+                field_value=field.get('value', 'unknown')
+            ).set(1)
 
         print(f"Metrics updated for device: {hostname}")
 
